@@ -47,6 +47,22 @@ class ApkTests(unittest.TestCase):
             with self.assertRaises(KeyError):
                 verification.verify(project, apk)
 
+    def test_rejects_incorrect_version_even_when_commit_matches(self):
+        with tempfile.TemporaryDirectory() as work:
+            original = Path(work) / "original.apk"
+            changed = Path(work) / "changed.apk"
+            self.make_apk(original, synthetic_elf())
+            with zipfile.ZipFile(original) as source, zipfile.ZipFile(changed, 'w') as target:
+                for entry in source.namelist():
+                    data = source.read(entry)
+                    if entry == 'assets/rtp2httpd/BUILD-INFO.json':
+                        info = json.loads(data)
+                        info['version'] = '0.0.0'
+                        data = json.dumps(info).encode()
+                    target.writestr(entry, data)
+            with self.assertRaisesRegex(ValueError, 'version differs'):
+                verification.verify(project, changed)
+
     def test_rejects_missing_management_assets(self):
         with tempfile.TemporaryDirectory() as work:
             apk = Path(work) / "complete.apk"

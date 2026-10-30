@@ -13,7 +13,7 @@
 
 ## GitHub 自动跟随上游 Release
 
-`.github/workflows/upstream-release.yml` 每 6 小时检查一次 stackia/rtp2httpd 的最新正式 Release，也可手动运行。已发布的 `android-v<上游版本>` 会跳过。工作流解析 tag 对应提交，更新临时构建副本中的版本锁、应用版本及状态版本，生成 ARM32、ARM64、通用签名包、对应源码和 SHA256SUMS，再发布 GitHub Release。版本码按 major×1000000 + minor×1000 + patch 递增；不自动修改仓库默认分支。
+`.github/workflows/upstream-release.yml` 每 6 小时检查一次 stackia/rtp2httpd 的最新正式 Release，也可手动运行。已发布的 `android-v<上游版本>` 会跳过。工作流解析 tag 对应提交，更新临时构建副本中的版本锁、应用版本及状态版本，生成 ARM32、ARM64、通用签名包、对应源码和 SHA256SUMS，再发布 GitHub Release。版本码按 major×1000000 + minor×1000 + patch 递增；不自动修改仓库默认分支。 签名前逐一检查三种 APK 的 Manifest 应用版本和版本码，以及核心构建元数据的版本与提交；不匹配时停止发布。
 
 先将仓库推送到 GitHub，并在 Settings → Secrets and variables → Actions 配置：
 

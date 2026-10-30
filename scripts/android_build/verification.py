@@ -17,7 +17,7 @@ def verify(project, apk, expected_abis=None):
         if expected_abis is not None and set(abis) != set(expected_abis):
             raise ValueError("Packaged ABIs do not match requested ABIs: " + repr(abis))
         info = json.loads(archive.read("assets/rtp2httpd/BUILD-INFO.json"))
-        if info.get("commit") != expected["commit"] or info.get("ndk_version") != expected["ndk_version"]:
+        if any(info.get(key) != expected[key] for key in ("version", "commit", "ndk_version")):
             raise ValueError("Packaged core version differs from the lock file")
         if set(info.get("abis", [])) != set(info.get("cores", {})) or set(info["abis"]) - set(expected["abis"]):
             raise ValueError("Invalid build metadata ABI list")
