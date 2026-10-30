@@ -1,0 +1,77 @@
+plugins { id 'com.android.application' }
+dependencies { testImplementation 'junit:junit:4.13.2' }
+
+def nativeLock = new groovy.json.JsonSlurper().parse(rootProject.file('third_party/rtp2httpd.lock.json'))
+def nativeOutput = layout.buildDirectory.dir('generated/native-core')
+def buildNativeCore = tasks.register('buildNativeCore', Exec) {
+    group = 'build'
+    description = 'Fetch pinned rtp2httpd sources and build the Android ARM64 executable'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'scripts/build_core.py',
+        '--sdk-root', android.sdkDirectory.absolutePath
+    inputs.file rootProject.file('third_party/rtp2httpd.lock.json')
+    inputs.dir rootProject.file('native')
+    inputs.files(rootProject.fileTree('scripts') { include '**/*.py', '**/*.sh' })
+    inputs.dir rootProject.file('app/src')
+    inputs.dir rootProject.file('docs')
+    inputs.dir rootProject.file('gradle')
+    inputs.property 'localSource', providers.environmentVariable('RTP2HTTPD_SOURCE_DIR').orElse('')
+    inputs.files rootProject.file('app/build.gradle'), rootProject.file('build.gradle'),
+        rootProject.file('settings.gradle'), rootProject.file('gradle.properties'), rootProject.file('README.md')
+    outputs.dir nativeOutput
+    outputs.dir rootProject.layout.buildDirectory.dir('outputs/native')
+}
+
+android {
+    ndkVersion nativeLock.ndk_version
+    def discoveredNdk = providers.exec {
+        workingDir rootProject.projectDir
+        commandLine 'python3', 'scripts/build_core.py', '--print-ndk-path',
+            '--sdk-root', android.sdkDirectory.absolutePath
+    }.standardOutput.asText.get().trim()
+    if (file(discoveredNdk + '/source.properties').isFile()) ndkPath discoveredNdk
+    namespace 'local.rtp2httpd'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'local.rtp2httpd'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '0.1.0'
+        ndk { abiFilters 'arm64-v8a' }
+    }
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            // The script already strips the executable; preserve bytes for hash verification.
+            keepDebugSymbols += ['**/librtp2httpd.so']
+        }
+    }
+    sourceSets {
+        main {
+            jniLibs.srcDirs = [nativeOutput.map { it.dir('jniLibs') }]
+            assets.srcDir(nativeOutput.map { it.dir('assets') })
+        }
+    }
+}
+
+def verifyReleaseCore = tasks.register('verifyReleaseCore', Exec) {
+    group = 'verification'
+    description = 'Check the Release APK contains the pinned Android executable and license'
+    dependsOn 'packageRelease'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'scripts/verify_apk.py',
+        'app/build/outputs/apk/release/app-release-unsigned.apk'
+}
+
+tasks.configureEach {
+    if (name.matches('merge.*(JniLibFolders|Assets)')) dependsOn buildNativeCore
+    if (name == 'assembleRelease') dependsOn verifyReleaseCore
+}
