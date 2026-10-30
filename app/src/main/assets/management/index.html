@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>rtp2httpd · 设备控制台</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<header><a class="brand" href="/">rtp2httpd</a><span id="connection" class="connection" data-status="inactive" role="status"><i class="status-dot" aria-hidden="true"></i><span id="connection-label">未启用</span></span></header>
+<main>
+<div id="workspace">
+<h1 class="sr-only">设备控制台</h1>
+<div class="layout">
+<aside><section class="panel device"><div class="section-label">运行状态 <span id="state" class="badge">连接中</span></div><div class="route"><div class="route-node"><i></i><span>上游网卡<strong id="active-interface">—</strong></span></div><div class="route-line"></div><div class="route-node"><i></i><span>HTTP 转发<strong id="active-port">:5140</strong></span></div></div><p id="runtime-note" class="hint" hidden></p><div class="controls"><button data-control="start">启动</button><button data-control="stop">停止</button><button data-control="restart">重启</button></div><p class="hint">停止转发后，管理页仍然可用。</p></section>
+</aside>
+<section class="panel editor"><div class="editor-heading"><div><h2>转发配置</h2><p>选择网卡，或直接编辑完整 YAML。</p></div></div>
+<div class="tabbar" role="tablist" aria-label="编辑方式"><button id="form-tab" role="tab" aria-selected="true" aria-controls="form-view">常用参数</button><button id="yaml-tab" role="tab" aria-selected="false" aria-controls="yaml-view">YAML 编辑</button></div>
+<div id="form-view" role="tabpanel" aria-labelledby="form-tab"><form id="config-form"><label class="toggle"><input id="enabled" type="checkbox"><span>启用转发核心<small>关闭后仍可修改和保存配置</small></span></label><div class="fields"><label>上游网卡<select id="upstream"><option value="">暂不配置</option></select><small>接收 IPTV 流量的网卡，首次配置可留空。</small></label><label>监听网卡<select id="listen"><option value="">全部 IPv4 地址</option></select><small>向播放器提供 HTTP 服务的网卡。</small></label><label>转发端口<input id="port" type="number" min="1024" max="65535" required><small>1024–65535，默认 5140。</small></label><label>最大客户端数<input id="maxclients" type="number" min="1" max="2147483647" required><small>同时观看的客户端上限，默认 5。</small></label><label>日志级别<select id="verbose"><option value="0">0 · 关闭</option><option value="1">1 · 错误</option><option value="2">2 · 常规（默认）</option><option value="3">3 · 详细</option><option value="4">4 · 调试</option></select><small>日志保留最近 256 行。</small></label><div class="field-note"><span>WORKERS</span><strong>1</strong><small>单工作进程，适合机顶盒运行。</small></div></div></form></div>
+<div id="yaml-view" role="tabpanel" aria-labelledby="yaml-tab" hidden><label class="sr-only" for="yaml">YAML 配置</label><textarea id="yaml" spellcheck="false" wrap="off"></textarea><div class="yaml-tools"><button id="validate">校验并格式化</button><label class="file-button">导入 YAML<input id="import" type="file" accept=".yml,.yaml,text/plain,application/yaml"></label><a href="/api/config/export" download="rtp2httpd.yml">导出已保存配置</a></div><p class="hint">最大 32 KiB。管理监听地址与端口请通过 ADB 修改后重启服务。</p></div>
+<div class="editor-footer"><div><button id="reload">重新读取</button><button id="apply" class="primary">保存并应用</button></div></div>
+<div class="revision-row"><code id="revision">—</code><button id="rollback" class="quiet">恢复上一份配置</button></div></section>
+<section class="panel log-panel"><div class="log-heading"><h2>最近日志</h2><span>最多 256 行 · 自动刷新</span></div><pre id="logs" tabindex="0">暂无日志</pre></section>
+</div></div>
+<div id="message" class="error" role="alert" aria-live="polite" hidden></div>
+</main><footer><code id="management-address">—</code><span id="version">rtp2httpd for Android</span></footer>
+</body></html>

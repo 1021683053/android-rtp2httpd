@@ -5,6 +5,9 @@
   "commit": "ec7808b813d4595dff890713993bc46b82f72fc2",
   "ndk_version": "28.2.13676358",
   "cmake_version": "3.22.1",
-  "abi": "arm64-v8a",
+  "abis": [
+    "arm64-v8a",
+    "armeabi-v7a"
+  ],
   "android_api": 26
 }

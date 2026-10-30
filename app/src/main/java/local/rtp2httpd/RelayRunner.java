@@ -27,7 +27,14 @@ final class RelayRunner {
     private final long maxDelayMs;
     private final long stableRunMs;
     private long nextDelayMs;
-    private Process process;
+    private volatile Process process;
+    private volatile boolean terminationFailed;
+
+    boolean isAlive() { Process child = process; return child != null && child.isAlive(); }
+
+    boolean awaitStopped(long timeoutMs) throws InterruptedException {
+        return executor.awaitTermination(timeoutMs, TimeUnit.MILLISECONDS) && !terminationFailed;
+    }
 
     RelayRunner(Launcher launcher, Listener listener) {
         this(launcher, listener, 1000, 60000, 60000);
@@ -112,8 +119,13 @@ final class RelayRunner {
 
     private void readLogs(Process child) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(child.getInputStream()))) {
-            String line;
-            while (!stopped.get() && (line = reader.readLine()) != null) listener.onLog(line);
+            StringBuilder line = new StringBuilder();
+            int item;
+            while (!stopped.get() && (item = reader.read()) != -1) {
+                if (item == '\n') { listener.onLog(line.toString()); line.setLength(0); }
+                else if (item != '\r' && line.length() < 512) line.append((char) item);
+            }
+            if (line.length() > 0 && !stopped.get()) listener.onLog(line.toString());
         } catch (IOException error) {
             if (!stopped.get()) listener.onLog("Core log stream closed: " + error.getMessage());
         }
@@ -133,7 +145,7 @@ final class RelayRunner {
         } catch (InterruptedException error) {
             child.destroyForcibly();
             Thread.currentThread().interrupt();
-        } finally { closeStreams(child); }
+        } finally { terminationFailed = child.isAlive(); closeStreams(child); }
     }
 
     private static void closeStreams(Process child) {

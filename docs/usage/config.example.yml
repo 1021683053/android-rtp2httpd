@@ -1,0 +1,15 @@
+schema_version: 1
+
+management:
+  enabled: true
+  listen_address: "127.0.0.1"
+  port: 5141
+
+relay:
+  enabled: true
+  upstream_interface: null
+  listen_interface: null
+  port: 5140
+  maxclients: 5
+  verbose: 2
+  workers: 1

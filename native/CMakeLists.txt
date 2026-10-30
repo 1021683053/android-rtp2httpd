@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
 project(android_rtp2httpd LANGUAGES C)
 
-if(NOT ANDROID OR NOT ANDROID_ABI STREQUAL "arm64-v8a")
-  message(FATAL_ERROR "Use the Android NDK toolchain and arm64-v8a ABI")
+if(NOT ANDROID OR NOT ANDROID_ABI MATCHES "^(arm64-v8a|armeabi-v7a)$")
+  message(FATAL_ERROR "Use the Android NDK toolchain and arm64-v8a or armeabi-v7a ABI")
 endif()
 if(NOT DEFINED RTP2HTTPD_SOURCE_DIR)
   message(FATAL_ERROR "RTP2HTTPD_SOURCE_DIR must name the prepared upstream source")

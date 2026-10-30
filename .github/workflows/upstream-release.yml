@@ -1,0 +1,95 @@
+name: Build upstream release
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: upstream-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve latest stable upstream release
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          def api(path):
+              return json.loads(subprocess.check_output(['gh','api',path]))
+          release=api('repos/stackia/rtp2httpd/releases/latest')
+          tag=release['tag_name']
+          match=re.fullmatch(r'v?(\d+)\.(\d+)\.(\d+)',tag)
+          if not match: raise SystemExit('Unsupported upstream version: '+tag)
+          version='.'.join(match.groups())
+          target='android-v'+version
+          existing=api('repos/'+os.environ['GITHUB_REPOSITORY']+'/releases?per_page=100')
+          if any(r['tag_name']==target and not r['draft'] for r in existing):
+              with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('build=false\n')
+              raise SystemExit(0)
+          commit=api('repos/stackia/rtp2httpd/commits/'+tag)['sha']
+          lock=Path('third_party/rtp2httpd.lock.json')
+          data=json.loads(lock.read_text()); data.update(tag=tag,version=version,commit=commit)
+          lock.write_text(json.dumps(data,indent=2)+'\n')
+          major,minor,patch=map(int,match.groups())
+          code=major*1000000+minor*1000+patch
+          if minor>=1000 or patch>=1000 or not 1<=code<=2100000000: raise SystemExit('Version code out of range')
+          p=Path('app/build.gradle'); text=p.read_text()
+          text=re.sub(r'versionCode \d+',f'versionCode {code}',text)
+          text=re.sub(r"versionName '[^']+'",f"versionName '{version}'",text); p.write_text(text)
+          p=Path('app/src/main/java/local/rtp2httpd/RelayController.java')
+          text=p.read_text(); text=re.sub(r'"version", "[^"]+", "core_version", "[^"]+"',f'"version", "{version}", "core_version", "{version}"',text); p.write_text(text)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write(f'build=true\ntag={target}\nversion={version}\n')
+          PY
+      - uses: actions/setup-java@v4
+        if: steps.upstream.outputs.build == 'true'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        if: steps.upstream.outputs.build == 'true'
+      - name: Prepare isolated CI SDK
+        if: steps.upstream.outputs.build == 'true'
+        run: sdkmanager 'platforms;android-34' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
+      - name: Test and build all ARM packages
+        if: steps.upstream.outputs.build == 'true'
+        run: |
+          python3 scripts/android.py test --python-only
+          python3 scripts/android.py build --backend sdk
+      - name: Sign packages
+        if: steps.upstream.outputs.build == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS"
+          umask 077
+          key="$RUNNER_TEMP/release.p12"
+          trap 'rm -f "$key"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$key"
+          signer="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          mkdir -p build/publish
+          for apk in app/build/outputs/apk/release/*-unsigned.apk; do
+            name="$(basename "$apk" -unsigned.apk)"
+            "$signer" sign --ks "$key" --ks-key-alias "$KEY_ALIAS" --ks-pass env:KEYSTORE_PASSWORD --out "build/publish/$name-signed.apk" "$apk"
+            "$signer" verify "build/publish/$name-signed.apk"
+          done
+          cp build/outputs/native/*-source.tar.gz build/publish/
+          cd build/publish
+          sha256sum *.apk *.tar.gz > SHA256SUMS
+      - name: Publish release
+        if: steps.upstream.outputs.build == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.upstream.outputs.tag }}
+          UPSTREAM_VERSION: ${{ steps.upstream.outputs.version }}
+        run: |
+          gh release create "$RELEASE_TAG" build/publish/* --target "$GITHUB_SHA" --title "rtp2httpd $UPSTREAM_VERSION for Android" --notes "ARM32, ARM64 and universal Android APKs. Requires Android 8.0+. Corresponding source and SHA256SUMS included. Upstream: https://github.com/stackia/rtp2httpd/releases"

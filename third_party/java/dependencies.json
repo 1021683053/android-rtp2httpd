@@ -1,0 +1,9 @@
+{
+  "jars": [{
+    "file": "snakeyaml-2.6.jar",
+    "coordinate": "org.yaml:snakeyaml:2.6",
+    "url": "https://repo.maven.apache.org/maven2/org/yaml/snakeyaml/2.6/snakeyaml-2.6.jar",
+    "sha256": "c8f7a98e7394adda02f6317249710e4d1b4c7a25aa8c7eace0c2eea52eb8bf85",
+    "license": "Apache-2.0"
+  }]
+}

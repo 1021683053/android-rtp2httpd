@@ -1,21 +1,38 @@
 plugins { id 'com.android.application' }
-dependencies { testImplementation 'junit:junit:4.13.2' }
+dependencies {
+    implementation files('../third_party/java/snakeyaml-2.6.jar')
+    testImplementation 'junit:junit:4.13.2'
+}
+
+def verifyJavaDependencies = tasks.register('verifyJavaDependencies', Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'scripts/android.py', 'dependencies', 'check'
+    inputs.dir rootProject.file('third_party/java')
+}
 
 def nativeLock = new groovy.json.JsonSlurper().parse(rootProject.file('third_party/rtp2httpd.lock.json'))
+def abiSelection = providers.gradleProperty('abi').orElse(providers.environmentVariable('RTP2HTTPD_ABI')).getOrElse('universal')
+if (abiSelection != 'universal' && !nativeLock.abis.contains(abiSelection)) {
+    throw new GradleException('Unsupported ABI: ' + abiSelection)
+}
+def targetAbis = abiSelection == 'universal' ? nativeLock.abis : [abiSelection]
 def nativeOutput = layout.buildDirectory.dir('generated/native-core')
 def buildNativeCore = tasks.register('buildNativeCore', Exec) {
     group = 'build'
-    description = 'Fetch pinned rtp2httpd sources and build the Android ARM64 executable'
+    description = 'Fetch pinned rtp2httpd sources and build the selected Android ARM executables'
     workingDir rootProject.projectDir
-    commandLine 'python3', 'scripts/build_core.py',
-        '--sdk-root', android.sdkDirectory.absolutePath
+    commandLine 'python3', 'scripts/android.py', 'native',
+        '--sdk-root', android.sdkDirectory.absolutePath, '--abi', abiSelection
     inputs.file rootProject.file('third_party/rtp2httpd.lock.json')
+    inputs.dir rootProject.file('third_party/java')
     inputs.dir rootProject.file('native')
-    inputs.files(rootProject.fileTree('scripts') { include '**/*.py', '**/*.sh' })
+    inputs.files(rootProject.fileTree('scripts') { include '**/*.py' })
     inputs.dir rootProject.file('app/src')
+    inputs.dir rootProject.file('artwork')
     inputs.dir rootProject.file('docs')
     inputs.dir rootProject.file('gradle')
     inputs.property 'localSource', providers.environmentVariable('RTP2HTTPD_SOURCE_DIR').orElse('')
+    inputs.property 'abis', targetAbis
     inputs.files rootProject.file('app/build.gradle'), rootProject.file('build.gradle'),
         rootProject.file('settings.gradle'), rootProject.file('gradle.properties'), rootProject.file('README.md')
     outputs.dir nativeOutput
@@ -26,7 +43,7 @@ android {
     ndkVersion nativeLock.ndk_version
     def discoveredNdk = providers.exec {
         workingDir rootProject.projectDir
-        commandLine 'python3', 'scripts/build_core.py', '--print-ndk-path',
+        commandLine 'python3', 'scripts/android.py', 'locate', 'ndk',
             '--sdk-root', android.sdkDirectory.absolutePath
     }.standardOutput.asText.get().trim()
     if (file(discoveredNdk + '/source.properties').isFile()) ndkPath discoveredNdk
@@ -36,15 +53,22 @@ android {
         applicationId 'local.rtp2httpd'
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName '0.1.0'
-        ndk { abiFilters 'arm64-v8a' }
+        versionCode 3017002
+        versionName '3.17.2'
     }
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    splits {
+        abi {
+            enable true
+            reset()
+            include(*targetAbis)
+            universalApk true
         }
     }
     packaging {
@@ -62,16 +86,31 @@ android {
     }
 }
 
-def verifyReleaseCore = tasks.register('verifyReleaseCore', Exec) {
+android.applicationVariants.all { variant ->
+    if (variant.name == 'release') {
+        variant.outputs.all { output ->
+            if (output.getFilter('ABI') == null) outputFileName = 'app-release-unsigned.apk'
+        }
+    }
+}
+
+def verifyReleaseCore = tasks.register('verifyReleaseCore') {
     group = 'verification'
     description = 'Check the Release APK contains the pinned Android executable and license'
     dependsOn 'packageRelease'
-    workingDir rootProject.projectDir
-    commandLine 'python3', 'scripts/verify_apk.py',
-        'app/build/outputs/apk/release/app-release-unsigned.apk'
+    doLast {
+        android.applicationVariants.find { it.name == 'release' }.outputs.each { output ->
+            project.exec {
+                workingDir rootProject.projectDir
+                commandLine 'python3', 'scripts/android.py', 'verify', output.outputFile.absolutePath,
+                    '--abi', output.getFilter('ABI') ?: abiSelection
+            }
+        }
+    }
 }
 
 tasks.configureEach {
+    if (name.matches('compile.*JavaWithJavac')) dependsOn verifyJavaDependencies
     if (name.matches('merge.*(JniLibFolders|Assets)')) dependsOn buildNativeCore
     if (name == 'assembleRelease') dependsOn verifyReleaseCore
 }
