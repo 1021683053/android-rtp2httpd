@@ -59,7 +59,9 @@ jobs:
           packages: 'platform-tools'
       - name: Prepare isolated CI SDK
         if: steps.upstream.outputs.build == 'true'
-        run: sdkmanager 'platforms;android-34' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
+        run: |
+          sdkmanager 'platforms;android-34' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
       - name: Test and build all ARM packages
         if: steps.upstream.outputs.build == 'true'
         run: |
