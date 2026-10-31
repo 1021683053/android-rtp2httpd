@@ -16,20 +16,22 @@ public class RelayControllerTest {
         long deadline = System.nanoTime()+4_000_000_000L;
         while (!condition.getAsBoolean()) {if(System.nanoTime()>deadline) fail("Timed out"); Thread.sleep(10);}
     }
-    @Test public void successfulApplySerializesCoreReplacementAndRejectsConflicts() throws Exception {
+    @Test public void successfulApplySerializesCoreReplacementAndLaterSubmissionOverwrites() throws Exception {
         ConfigStore store = new ConfigStore(Files.createTempDirectory("relay-apply").toFile());
         AppConfig old = config(5140), next = config(5142); store.commit(old);
         FakeRuntime runtime = new FakeRuntime(); RelayController controller = new RelayController(store,old,runtime);
         try {
             controller.start(); until(() -> runtime.active.get()==1);
-            long id = controller.apply(next,old.revision());
-            try {controller.apply(old,old.revision()); fail();} catch (RelayController.Conflict expected) { }
+            long id = controller.apply(next);
+            try {controller.apply(old); fail();} catch (RelayController.Conflict expected) { }
             until(() -> !Boolean.TRUE.equals(controller.status().get("busy")));
             assertEquals(next.revision(),store.read().revision()); assertEquals(next.revision(),controller.config().revision());
             assertEquals(1,runtime.maximum.get()); assertEquals(1,runtime.active.get());
             assertEquals(id,((Number)((Map<?,?>)controller.status().get("operation")).get("id")).longValue());
-            try {controller.apply(old,old.revision()); fail();} catch(RelayController.Conflict expected) { }
-            controller.apply(next.withRelayEnabled(false),next.revision());
+            controller.apply(old);
+            until(() -> !Boolean.TRUE.equals(controller.status().get("busy")));
+            assertEquals(old.revision(), store.read().revision());
+            controller.apply(next.withRelayEnabled(false));
             until(() -> !Boolean.TRUE.equals(controller.status().get("busy")));
             assertEquals("STOPPED",controller.status().get("state")); assertEquals(0,runtime.active.get());
         } finally {controller.close();}
@@ -41,7 +43,7 @@ public class RelayControllerTest {
         RelayController controller = new RelayController(store,old,runtime);
         try {
             controller.start(); until(() -> runtime.active.get()==1);
-            controller.apply(config(5145),old.revision());
+            controller.apply(config(5145));
             until(() -> !Boolean.TRUE.equals(controller.status().get("busy")));
             until(() -> runtime.active.get()==1);
             assertEquals(old.revision(),store.read().revision()); assertEquals(old.revision(),controller.config().revision());
@@ -56,7 +58,7 @@ public class RelayControllerTest {
         try {
             controller.start();until(() -> "WAITING_CONFIG".equals(controller.status().get("state")));
             assertEquals(0,runtime.active.get());
-            try {controller.apply(AppConfig.defaults(),initial.revision());fail();}catch(IllegalArgumentException expected){}
+            try {controller.apply(AppConfig.defaults());fail();}catch(IllegalArgumentException expected){}
             for(int i=0;i<300;i++)controller.log("token=secret http://user:pass@host/a "+i);
             List<?> lines=(List<?>)controller.logs();assertEquals(256,lines.size());assertFalse(lines.get(0).toString().contains("secret"));assertFalse(lines.get(0).toString().contains("user:pass"));
         } finally {controller.close();}
@@ -76,7 +78,7 @@ public class RelayControllerTest {
         });
         try {
             controller.start(); until(() -> "RUNNING".equals(controller.status().get("state")));
-            controller.apply(config(5142), old.revision());
+            controller.apply(config(5142));
             until(() -> !Boolean.TRUE.equals(controller.status().get("busy")));
             assertEquals(1, launches.get());
             assertEquals(old.revision(), store.read().revision());

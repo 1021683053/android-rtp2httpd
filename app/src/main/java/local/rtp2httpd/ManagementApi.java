@@ -37,13 +37,13 @@ final class ManagementApi {
                     Response export = new Response(200, "application/yaml; charset=utf-8", controller.config().yaml().getBytes(StandardCharsets.UTF_8));
                     export.headers.put("Content-Disposition", "attachment; filename=rtp2httpd.yml"); return export;
                 case "POST /api/config/validate": return config(AppConfig.parse(request.text()));
-                case "POST /api/config/apply": return apply(AppConfig.parse(request.text()), request);
+                case "POST /api/config/apply": return apply(AppConfig.parse(request.text()));
                 case "POST /api/config/rollback":
-                    try { return apply(controller.previous(), request); }
+                    try { return apply(controller.previous()); }
                     catch (IOException failure) { throw new IllegalArgumentException("没有可用的上一份配置"); }
-                case "POST /api/relay/start": return apply(controller.config().withRelayEnabled(true), request);
-                case "POST /api/relay/stop": return apply(controller.config().withRelayEnabled(false), request);
-                case "POST /api/relay/restart": return apply(controller.config(), request);
+                case "POST /api/relay/start": return apply(controller.config().withRelayEnabled(true));
+                case "POST /api/relay/stop": return apply(controller.config().withRelayEnabled(false));
+                case "POST /api/relay/restart": return apply(controller.config());
                 default: throw new HttpError(404, "接口不存在");
             }
         } catch (RelayController.Conflict error) { return Response.json(409, Json.object("error", error.getMessage()));
@@ -51,8 +51,8 @@ final class ManagementApi {
         } catch (HttpError error) { return Response.json(error.status, Json.object("error", error.getMessage())); }
     }
 
-    private Response apply(AppConfig config, Request request) {
-        return Response.json(202, Json.object("operation_id", controller.apply(config, request.headers.get("if-match"))));
+    private Response apply(AppConfig config) {
+        return Response.json(202, Json.object("operation_id", controller.apply(config)));
     }
     private static Response config(AppConfig config) {
         return Response.json(200, Json.object("config", config.toMap(), "yaml", config.yaml(), "revision", config.revision()));

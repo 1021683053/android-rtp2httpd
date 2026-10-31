@@ -92,7 +92,7 @@ python3 scripts/android.py test
 python3 scripts/android.py verify app/build/outputs/apk/release/app-release-unsigned.apk --abi universal
 ```
 
-完整主机测试使用现有 JDK 17 及 Gradle 缓存中的 JUnit 4.13.2、Hamcrest 1.3；缺失时明确报错，不自动下载。Python-only 测试不要求 JUnit，但测试源码拉取逻辑需要已有 Git。
+完整主机测试使用现有 JDK 17 及 Gradle 缓存中的 JUnit 4.13.2、Hamcrest 1.3；缺失时明确报错，不自动下载。Python-only 测试不要求 JUnit，但测试源码拉取逻辑需要已有 Git。网页异步操作回归测试使用已有 Node.js 18+ 的内置测试工具，无需 npm 依赖；缺少 Node.js 时单独显示跳过。
 
 Gradle 专项检查可在已配置的环境执行：
 

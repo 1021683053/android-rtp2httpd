@@ -43,7 +43,7 @@ public class ManagementTest {
         valid.headers.put("host","127.0.0.1:5141"); valid.headers.put("origin","http://evil.test");
         try {ManagementApi.checkOrigin(valid,"127.0.0.1",5141); fail();} catch (IOException expected) { }
     }
-    @Test public void apiWorksWithoutCredentialsAndStillRejectsCrossSiteWritesAndStaleRevision() throws Exception {
+    @Test public void apiWorksWithoutCredentialsOrRevisionAndStillRejectsCrossSiteWrites() throws Exception {
         AppConfig config = AppConfig.parse("management: {enabled: true}\nrelay: {enabled: false}");
         ConfigStore store = new ConfigStore(Files.createTempDirectory("relay-api").toFile()); store.commit(config);
         RelayController controller = new RelayController(store, config, new RelayController.Runtime() {
@@ -61,14 +61,12 @@ public class ManagementTest {
                 assertEquals(404, api.handle(request(method, "/api/session", ""), "127.0.0.1", 5141).status);
             assertEquals(200, api.handle(request("POST", "/api/config/validate", config.yaml()), "127.0.0.1", 5141).status);
             Request write = request("POST", "/api/config/apply", config.yaml());
-            write.headers.put("if-match", config.revision());
             write.headers.put("origin", "http://evil.test");
             assertEquals(403, api.handle(write, "127.0.0.1", 5141).status);
             write.headers.remove("origin"); write.headers.put("sec-fetch-site", "cross-site");
             assertEquals(403, api.handle(write, "127.0.0.1", 5141).status);
-            write.headers.remove("sec-fetch-site"); write.headers.put("if-match", "stale");
-            assertEquals(409, api.handle(write, "127.0.0.1", 5141).status);
-            write.headers.put("if-match", config.revision()); write.headers.put("origin", "http://127.0.0.1:5141");
+            write.headers.remove("sec-fetch-site");
+            write.headers.put("origin", "http://127.0.0.1:5141");
             assertEquals(202, api.handle(write, "127.0.0.1", 5141).status);
             Response data = api.handle(request("GET", "/api/config", ""), "127.0.0.1", 5141);
             ByteArrayOutputStream output = new ByteArrayOutputStream(); ManagementServer.write(output, data);

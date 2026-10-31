@@ -1,5 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
+let submitting = false;
 let revision = '', model = null, mode = 'form', dirty = false, pending = null, ready = false, polling = false, messageTimer;
 const stateNames = {STOPPED:'已停止',WAITING_CONFIG:'等待配置',STARTING:'启动中',RUNNING:'运行中',RETRY_WAIT:'等待重试',APPLYING:'正在应用',ERROR:'运行异常'};
 function setConnection(status, text) {
@@ -33,9 +34,9 @@ async function api(path, method = 'GET', body, headers = {}) {
 }
 function markDirty(value = true) { dirty = value; }
 function setBusy(value) {
+  value = value || submitting || !!pending;
   for (const id of ['apply','rollback','reload']) $(id).disabled = value;
   document.querySelectorAll('[data-control]').forEach(button => button.disabled = value);
-  document.querySelectorAll('#config-form input,#config-form select,#yaml,#import,#validate,#form-tab,#yaml-tab').forEach(element => element.disabled = value);
 }
 function options(select, interfaces, selected, empty) {
   select.replaceChildren(new Option(empty, ''));
@@ -74,56 +75,63 @@ async function connect() {
 $('config-form').addEventListener('input', () => markDirty());
 $('yaml').addEventListener('input', () => markDirty());
 async function validate() {
+  if (!ready) return false;
   if (mode === 'form' && !$('config-form').reportValidity()) throw new Error('请检查参数范围');
-  const data = await api('/api/config/validate','POST',mode === 'form' ? formYaml() : $('yaml').value);
-  $('yaml').value = data.yaml; fillForm(data.config); return data;
+  const sourceMode = mode, content = mode === 'form' ? formYaml() : $('yaml').value;
+  const data = await api('/api/config/validate','POST',content);
+  if (mode !== sourceMode || content !== (mode === 'form' ? formYaml() : $('yaml').value)) return false;
+  $('yaml').value = data.yaml; fillForm(data.config); return true;
 }
 async function switchMode(next) {
   if (next === mode) return;
   try {
-    await validate(); mode = next;
+    if (!await validate()) return;
+    mode = next;
     $('form-view').hidden = next !== 'form'; $('yaml-view').hidden = next !== 'yaml';
     $('form-tab').setAttribute('aria-selected', String(next === 'form')); $('yaml-tab').setAttribute('aria-selected', String(next === 'yaml'));
-  } catch(error) { showError(error.message); }
+  } catch (error) { showError(error.message); }
 }
 $('form-tab').addEventListener('click', () => switchMode('form'));
 $('yaml-tab').addEventListener('click', () => switchMode('yaml'));
-$('validate').addEventListener('click', async () => { try { await validate(); hideMessage(); } catch(error) { showError(error.message); } });
+$('validate').addEventListener('click', async () => {
+  try { await validate(); hideMessage(); } catch (error) { showError(error.message); }
+});
 $('import').addEventListener('change', async event => {
   const file = event.target.files[0]; if (!file) return;
   try {
     if (file.size > 32768) throw new Error('文件超过 32 KiB');
-    // Decode before replacing the current draft; malformed input never silently loses bytes.
     const content = new TextDecoder('utf-8',{fatal:true}).decode(await file.arrayBuffer());
     $('yaml').value = content; markDirty(); hideMessage();
-  } catch(error) { showError(error.message); } finally { event.target.value = ''; }
+  } catch (error) { showError(error.message); }
+  finally { event.target.value = ''; }
 });
-async function submit(path, body, replaceDraft) {
-  if (pending) return;
+async function submit(path, body, reloadConfig) {
+  if (!ready || submitting || pending) return;
   hideMessage();
+  submitting = true;
+  if (reloadConfig) markDirty(false);
   setBusy(true);
   try {
-    const result = await api(path,'POST',body,{'If-Match':revision});
-    pending = {id:result.operation_id, replaceDraft};
+    const result = await api(path,'POST',body);
+    pending = {id:result.operation_id, reloadConfig};
+    submitting = false;
     await poll();
-  } catch(error) { showError(error.message); setBusy(false); }
+  } catch(error) {
+    if (reloadConfig) markDirty();
+    submitting = false; showError(error.message); setBusy(false);
+  }
 }
 $('apply').addEventListener('click', async () => {
-  try {
-    const data = await validate();
-    await submit('/api/config/apply',data.yaml,true);
-  } catch(error) { showError(error.message); }
+  if (!ready || mode === 'form' && !$('config-form').reportValidity()) return;
+  await submit('/api/config/apply',mode === 'form' ? formYaml() : $('yaml').value,true);
 });
-$('rollback').addEventListener('click', async () => {
-  await submit('/api/config/rollback',undefined,true);
-});
+$('rollback').addEventListener('click', () => submit('/api/config/rollback',undefined,true));
 $('reload').addEventListener('click', async () => {
-  try {await loadConfig(true); hideMessage();} catch(error) {showError(error.message);}
+  try { await loadConfig(true); hideMessage(); } catch (error) { showError(error.message); }
 });
-document.querySelectorAll('[data-control]').forEach(button => button.addEventListener('click',async () => {
-  const action = button.dataset.control;
-  await submit('/api/relay/' + action,undefined,false);
-}));
+document.querySelectorAll('[data-control]').forEach(button => button.addEventListener('click',
+  () => submit('/api/relay/' + button.dataset.control,undefined,false)
+));
 async function poll() {
   if (polling || document.hidden) return;
   polling = true;
@@ -140,7 +148,8 @@ async function poll() {
     if (pending && status.operation.id === pending.id && status.operation.done) {
       const result = pending; pending = null;
       const success = status.operation.outcome === 'applied';
-      await loadConfig(success && result.replaceDraft, true);
+      if (!success && result.reloadConfig) markDirty();
+      await loadConfig(false, true);
       if (success) hideMessage();
       else showError((status.operation.outcome === 'failed_rolled_back' ? '应用失败，已恢复原配置：' : '应用失败，请检查核心状态：') + status.operation.error);
     } else if (pending && status.operation.id !== pending.id && !status.busy) {

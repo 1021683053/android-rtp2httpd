@@ -58,9 +58,8 @@ final class RelayController implements AutoCloseable {
 
     synchronized Object logs() { return new ArrayList<>(logs); }
 
-    synchronized long apply(AppConfig candidate, String expectedRevision) {
+    synchronized long apply(AppConfig candidate) {
         if (closed) throw new IllegalStateException("服务正在停止");
-        if (!config.revision().equals(expectedRevision)) throw new Conflict("配置已更新，请重新读取后再保存");
         if (!config.sameManagement(candidate))
             throw new IllegalArgumentException("管理地址和端口需通过 ADB 停止服务后修改，网页仅应用转发配置");
         if (!busy.compareAndSet(false, true)) throw new Conflict("另一项配置操作尚未完成");

@@ -26,7 +26,7 @@ def buildNativeCore = tasks.register('buildNativeCore', Exec) {
     inputs.file rootProject.file('third_party/rtp2httpd.lock.json')
     inputs.dir rootProject.file('third_party/java')
     inputs.dir rootProject.file('native')
-    inputs.files(rootProject.fileTree('scripts') { include '**/*.py' })
+    inputs.files(rootProject.fileTree('scripts') { include '**/*.py', '**/*.cjs' })
     inputs.dir rootProject.file('app/src')
     inputs.dir rootProject.file('artwork')
     inputs.dir rootProject.file('docs')

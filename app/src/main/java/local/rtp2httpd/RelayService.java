@@ -94,9 +94,9 @@ public final class RelayService extends Service {
         if (controller == null) return;
         AppConfig current = controller.config();
         if (ACTION_START.equals(action) || ACTION_RESTART.equals(action)) {
-            controller.apply(current.withRelayEnabled(true), current.revision());
+            controller.apply(current.withRelayEnabled(true));
         } else if (ACTION_STOP.equals(action)) {
-            controller.apply(current.withRelayEnabled(false), current.revision());
+            controller.apply(current.withRelayEnabled(false));
         }
     }
 
