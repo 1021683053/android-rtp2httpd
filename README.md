@@ -38,4 +38,4 @@ python3 scripts/android.py build --backend sdk
 
 默认生成 ARM32、ARM64 独立包及双架构通用包，均需签名后安装。完整命令、输出位置及签名步骤见[构建说明](docs/development/building.md)。
 
-当前 26 项 JVM 和 29 项 Python 测试、SDK-only 多架构及离线源码构建通过，ARM64 电视模拟器已验证。ARM32 实机、真实 IPTV 长跑、完整 Gradle 与 GitHub 云端执行仍待验收，详见开发计划。
+当前 26 项 JVM 和 30 项 Python 测试、SDK-only 多架构及离线源码构建通过，ARM64 电视模拟器已验证。GitHub 在线构建及签名发布已通过，可[下载 v3.17.2 安装包](https://github.com/1021683053/android-rtp2httpd/releases/tag/android-v3.17.2)；后续每 6 小时检查上游正式 Release。ARM32 实机、真实 IPTV 长跑及完整 Gradle 仍待验收，详见开发计划。

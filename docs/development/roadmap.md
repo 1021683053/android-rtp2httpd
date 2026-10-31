@@ -128,7 +128,7 @@ API 路径与请求契约统一维护在 [HTTP 管理说明](../usage/configurat
 
 ## 验证状态
 
-当前汇总：26 项 JVM 测试、29 项 Python 测试及 ARM32/ARM64/通用 SDK-only 构建通过，离线源码构建通过；ARM64 电视模拟器已验证首页、管理功能及重启恢复。ARM32 实机、真实 IPTV、24 小时长跑、完整 Gradle 与 GitHub 云端执行尚未完成验收。以下带日期和包体积的内容是历史批次记录，不代表当前产物大小。
+当前汇总：26 项 JVM 测试、30 项 Python 测试及 ARM32/ARM64/通用 SDK-only 构建通过，离线源码构建通过；ARM64 电视模拟器已验证首页、管理功能及重启恢复。ARM32 实机、真实 IPTV、24 小时长跑、完整 Gradle 尚未完成验收；GitHub 云端签名发布已验证通过。以下带日期和包体积的内容是历史批次记录，不代表当前产物大小。
 
 - [x] ARM32/ARM64 构建：支持 armeabi-v7a 与 arm64-v8a 的独立 APK 和双架构通用 APK，按架构验证 ELF、Android 动态链接器及核心哈希；`--abi` 支持单独选择架构，防止混入缓存的其他架构核心。
 - [ ] ARM32 实机验收：在 API 26+、支持 armeabi-v7a/NEON 的盒子上验证安装、核心启动、真实组播转发及重启恢复；现有模拟器仅支持 arm64-v8a，不能代替此项。
@@ -205,4 +205,6 @@ Gradle 参数通过 `build -- --offline` 传递；保留 SDK/NDK/JDK 环境变�
 
 签名文件、设备 YAML 与系统工具均不属于重构迁移对象。回退应针对重构变更，不改变设备配置或签名。当前改动尚未生成独立 Git 提交。
 
-本地验收记录：26 项 JVM、29 项 Python 测试通过；真实 NDK ARM32/ARM64 编译、SDK-only 三包构建、离线源码构建及单 ABI 缓存清理通过。两份 Actions 已迁移，YAML 与 Shell 语法检查通过。Gradle 实际执行仍因 FileLockContentionHandler socket 的沙箱权限失败；GitHub remote/Secrets 未配置，云端执行尚未验收。旧脚本已删除，新入口与所需模块均纳入对应源码包。
+本地验收记录：26 项 JVM、29 项 Python 测试通过；真实 NDK ARM32/ARM64 编译、SDK-only 三包构建、离线源码构建及单 ABI 缓存清理通过。两份 Actions 已迁移，YAML 与 Shell 语法检查通过。Gradle 实际执行仍因 FileLockContentionHandler socket 的沙箱权限失败；GitHub SSH remote 和签名 Secrets 已配置，云端执行及签名发布已验收。旧脚本已删除，新入口与所需模块均纳入对应源码包。
+
+GitHub 在线验收：2026-10-31，[自动跟随上游工作流](https://github.com/1021683053/android-rtp2httpd/actions/runs/41161753130) 成功拉取 v3.17.2，编译三包、校验版本、复用现有证书签名并[发布 Release](https://github.com/1021683053/android-rtp2httpd/releases/tag/android-v3.17.2)。三种下载包的 ABI、版本码、签名及 SHA-256 均复核通过。普通推送构建也通过；完整 Gradle 的验收仍保持未完成。

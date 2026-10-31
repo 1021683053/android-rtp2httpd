@@ -45,4 +45,6 @@
 - 定时任务没有新 Release：相同 android-v 版本会跳过；还需检查定时任务是否启用及最近一次执行日志。
 - 下载未签名包无法安装：选择 signed.apk，或按[本地签名说明](building.md)签名后安装。
 
-当前本地已通过工作流 YAML 和 Shell 语法检查；云端实际执行及自动发布仍待仓库与 Secrets 配置完成后验收。
+2026-10-31 已完成[云端构建与签名发布验收](https://github.com/1021683053/android-rtp2httpd/actions/runs/41161753130)，上游最新正式版 v3.17.2 对应的[Android Release 已发布](https://github.com/1021683053/android-rtp2httpd/releases/tag/android-v3.17.2)。ARM32、ARM64、通用包均已下载复核：Manifest 版本 3.17.2、版本码 3017002、核心版本与提交均匹配，签名证书与本地已有签名相同，SHA256SUMS 校验通过；对应源码不含签名文件。
+
+Runner 初始化显式安装 platform-tools，避免请求已下架的 tools 包；后续步骤显式选择 NDK 28.2.13676358，避免误用 Runner 预设的其他 NDK。普通推送构建同样已通过。三个 Release Secrets 已配置，定时发布工作流处于 active 状态。
